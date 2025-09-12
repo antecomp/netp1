@@ -1,4 +1,3 @@
 #
-# This file should include your name, which course you are registered for (471 or 598-J)
-# and any special instructions or notes requried for building and running your webServer
-#
+# Dean Coventry | CSCI471 | Networking Programming Project 1
+[ Add any special requirements here, e.g the port number to connect to ]
