@@ -22,37 +22,12 @@
 #define PORT 1993
 #define BUFFER_SIZE 1024
 
-
-// I think the read/write is supposed to be in a loop to hold open a connection
-// void processConnection(int connfd) {
-//     int bytesRead;
-//     char buffer[BUFFER_SIZE]; // char[] often used to represent an arbitrary bytestream.
-//     bzero(buffer, BUFFER_SIZE);
-
-//     /* Note: Reading zero bytes means you reached the end of the file.
-//     But a network never ends, so a zero means the connection failed. */
-//     if((bytesRead = read(connfd, buffer, BUFFER_SIZE)) < 1) {
-//         if(bytesRead < 0) {
-//             FATAL << "error in processConnection/read - bytesRead reports error: " << strerror(errno) << ENDL;
-//             exit(-1);
-//         }
-
-//         TRACE << "No bytes read, connection closed by client?" << ENDL;
-//     }
-
-//     INFO << "We read " << bytesRead << "bytes" << ENDL;
-
-//     // Echo back - since we didn't exit we should have something in buffer now.
-//     write(connfd, buffer, bytesRead);
-
-// }
-
-
 void processConnection(int connfd) {
     ssize_t bytesRead;
     char buffer[BUFFER_SIZE];
     bzero(buffer, BUFFER_SIZE);
 
+    // Read here is *also* blocking! It will wait for data to arrive before returning and re-entering this loop.
     while((bytesRead = read(connfd, buffer, BUFFER_SIZE)) > 0) {
         // Now echo back
         ssize_t bytesWrittenBack = 0;
