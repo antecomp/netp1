@@ -20,6 +20,63 @@
 */
 
 #define PORT 1993
+#define BUFFER_SIZE 1024
+
+
+// I think the read/write is supposed to be in a loop to hold open a connection
+// void processConnection(int connfd) {
+//     int bytesRead;
+//     char buffer[BUFFER_SIZE]; // char[] often used to represent an arbitrary bytestream.
+//     bzero(buffer, BUFFER_SIZE);
+
+//     /* Note: Reading zero bytes means you reached the end of the file.
+//     But a network never ends, so a zero means the connection failed. */
+//     if((bytesRead = read(connfd, buffer, BUFFER_SIZE)) < 1) {
+//         if(bytesRead < 0) {
+//             FATAL << "error in processConnection/read - bytesRead reports error: " << strerror(errno) << ENDL;
+//             exit(-1);
+//         }
+
+//         TRACE << "No bytes read, connection closed by client?" << ENDL;
+//     }
+
+//     INFO << "We read " << bytesRead << "bytes" << ENDL;
+
+//     // Echo back - since we didn't exit we should have something in buffer now.
+//     write(connfd, buffer, bytesRead);
+
+// }
+
+
+void processConnection(int connfd) {
+    ssize_t bytesRead;
+    char buffer[BUFFER_SIZE];
+    bzero(buffer, BUFFER_SIZE);
+
+    while((bytesRead = read(connfd, buffer, BUFFER_SIZE)) > 0) {
+        // Now echo back
+        ssize_t bytesWrittenBack = 0;
+        while(bytesWrittenBack < bytesRead) {
+            ssize_t m = write(connfd, buffer + bytesWrittenBack, bytesRead - bytesWrittenBack);
+            if (m > 0) {
+                bytesWrittenBack += m;
+            }
+            if (m < 0) {
+                FATAL << "error in processConnection/write - write reports error: " << strerror(errno) << ENDL;
+                exit(-1);
+            }
+        }
+    }
+
+    if (bytesRead < 0) { // error.
+        FATAL << "error in processConnection/read - read reports error: " << strerror(errno) << ENDL;
+        exit(-1);
+    }
+
+    // else client closed (wrote nothing)
+    INFO << "Client Closed? (read empty)" << ENDL;
+
+}
 
 int main() {
 
@@ -56,15 +113,12 @@ int main() {
     while(1) {
         int connfd = -1;
         // Accept blocks until we actually have a connection.
-        if((connfd = accept(listenFd, (sockaddr*) NULL, NULL)) > 0) {
+        if((connfd = accept(listenFd, (sockaddr*) NULL, NULL)) < 0) {
             FATAL << "accept() failed: " << strerror(errno) << ENDL;
             exit(-1);
         } 
 
         processConnection(connfd);
+        close(connfd);
     }
-}
-
-void processConnection(int connfd) {
-    std::cout << "noop" << std::endl;
 }

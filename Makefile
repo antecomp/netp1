@@ -15,7 +15,7 @@ LDFLAGS =
 #
 # You should be able to add object files here without changing anything else
 #
-TARGET = webServer
+TARGET = echoServer
 OBJ_FILES = ${TARGET}.o
 INC_FILES = ${TARGET}.h
 

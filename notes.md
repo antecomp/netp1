@@ -75,8 +75,41 @@ while (1) {
 ```
 
 ## Read & Write.
-(TODO NEXT: Slide 51)
+`ssize_t read(int fd, void *buf, size_t count);`
 
+`ssize_t write(int fd, const void *buf, size_t count);
+int close(int fd);`
+
+Calls like read of course don't know the size of the buffer, you have to tell it beforehand. Use something like `#define BUFFER_SIZE 1024`. 
+
+`char` (specifically `char[]`) is useful in C for handling raw byestreams. Don't confuse it with strings, we're using it as a generic misc data container.
+> Reading zero bytes means you reached the end of the file.
+"But a network never ends, so a zero means the connection
+failed."
+
+```c
+#define BUFFER_SIZE 1024
+int processConnection (connFd) {
+    int bytesRead;
+    char buffer[BUFFER_SIZE];
+    bzero(buffer,BUFFER_SIZE);
+    if ((bytesRead = read(connFd, buffer, BUFFER_SIZE)) < 1) {
+        if (bytesRead < 0) { 
+            //print the error 
+        }
+            std::count << “connection closed unexpectedly” std::endl; 
+    }
+    std::cout << “We read ” << bytesRead << “ bytes” << std::endl;
+}
+```
+
+**Common Errors**
+* EAGAIN Non-blocking I/O with no data available.
+* EBADF Bad file descriptor
+* EFAULT Buf is a bad address.
+* EINTR The call was interrupted before any data was read.
+* EINVAL File descriptor is attached to something that can be read from.
+* EISDIR
 ---
 
 ## logging.h 

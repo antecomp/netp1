@@ -16,10 +16,13 @@
 
 #include "logging.h"
 
+#include <strings.h> // for bzero
+#include <errno.h> // for errno
+
 #define GET 1
 #define HEAD 2
 #define POST 3
 
-inline int BUFFER_SIZE = 10;
+//inline int BUFFER_SIZE = 10;
 
 #endif
