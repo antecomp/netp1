@@ -126,3 +126,7 @@ example usage;
 ```c
 DEBUG << "This is a debug message" << ENDL;
 ```
+
+## Testing Echo
+Generic test with `nc localhost PORT_NUMBER`.
+One thing to note, however, is that nc normally just sends it all in one big chunk when you hit enter, instead of sending \n as-is. This is bad for testing that we're actually properly firing off on \n (since we could just be firing by read() end). To send characters straight to the socket as is, preceed the nc command with `stty raw -echo`. This operation should be undone after testing with `stty sane`. Notice how in this mode backspace no longer works!
