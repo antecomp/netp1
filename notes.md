@@ -135,3 +135,15 @@ To test specific escape codes or whatever, you can also use pipes into netcat. f
 ```
 printf 'hello\r\nworld\r\n' | nc localhost ####
 ```
+
+---
+
+## HTTP
+Example header;
+```plaintext
+GET /index.html HTTP/1.0
+User-Agent: Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.1)
+Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8
+Host: www.example.com
+```
+The *end* of a header is deliminated by a blank line (`\r\n\r\n`)!

@@ -3,9 +3,21 @@
 #define DEFAULT_PORT 1993
 #define CHUNK_SIZE 10
 
-void processConnection(int connfd) {
-    std::string leftovers; // overflow from last line, will be attached to next line.
+/* 
+1. Set the default return code to 400
+2. Read everything up to and including the end of the header.
+3. Look at the first line of the header to see if it contains a valid GET
+    a. If there is a valid GET, find the filename.
+    b. If there is a filename, make sure it is a valid filename according to the specs of the assignment.
+        i. If the filename is valid set the return code to 200.
+        ii. If the filename is invalid set the return code to 404.
+*/
+int readRequest(int connfd, std::string &filename) {
+    int rtnCode = 400;
 
+    std::vector<std::string> lines;
+
+    std::string leftovers; // overflow from last line, will be attached to next line.
     while (1) {
         std::string line = std::move(leftovers);
 
@@ -15,16 +27,16 @@ void processConnection(int connfd) {
             line.erase(newlinePos + termLen);
         } else { // Otherwise keep reading in 10-byte chunks until we build a full line.
             char chunk[CHUNK_SIZE];
-            while (true) {
+            while (true) { // read loop (go in chunks, appending to line until we hit terminator)
                 ssize_t bytesRead = read(connfd, chunk, sizeof(chunk));
                 if (bytesRead == 0) {
                     INFO << "Client Closed Connection (Empty Read)" << ENDL;
-                    return;
+                    return rtnCode;
                 }
                 if (bytesRead < 0) {
                     if (errno == EINTR) continue;
                     ERROR << "read() failed: " << strerror(errno) << ENDL;
-                    return;
+                    return rtnCode;
                 }
 
                 line.append(chunk, bytesRead);
@@ -36,35 +48,45 @@ void processConnection(int connfd) {
             }
         }
 
-        // REPLACE ME WITH THE STUFF TO ACTUALLY PARSE AND RESPONSE TO HTTP REQUESTS!!
-        const char* data = line.data(); // convert back to raw data (I think this is the right method for that)
-        size_t remaining = line.size();
-        while (remaining > 0) {
-            ssize_t written = write(connfd, data, remaining);
-            if (written < 0) {
-                // same thing regarding EINTR here as w/ read
-                if(errno == EINTR) continue;
-                ERROR << "write() failed: " << strerror(errno) << ENDL;
-                return;
-            }
-            data += written;
-            remaining -= written;
-        }
-
-        
-        // Condition to break this loop: Word "CLOSE" sent...
-        // string_view is this non-mutable window thingy we can use to trim our line of esc chars.
-        std::string_view trimmed = line;
-        while(!trimmed.empty() && (trimmed.back() == '\n' || trimmed.back() == '\r')) {
-            trimmed.remove_suffix(1);
-        }
-        if (trimmed == "CLOSE") {
-            INFO << "Closing by will of client: CLOSE command" << ENDL;
-            return;
-        }
-
+        // Condition for break: blank line (\r\n\r\n, but we've sanitized/clipped above so there should just be "" left)
+        if (line.empty() || line == std::string(LINE_TERMINATOR)) break;
+        // Otherwise just keep appending to lines.
+        lines.push_back(line);
     }
 
+    // Read lines to parse out GET request next...
+    // Get should always be first, so we can just look at [0]. GET in other places is as good as invalid.
+    if (!lines.empty()) {
+        std::istringstream iss(lines[0]);
+        std::string method, path, version;
+        iss >> method;
+        iss >> path;
+        iss >> version;
+        if(
+            !iss.fail() 
+            && method == "GET" 
+            && version.compare(0, 5, "HTTP/") == 0
+        ) {
+            filename = path;
+            rtnCode = 200;
+            INFO << "Recieved GET request for " << filename << ENDL;
+        } else {
+            WARNING << "Recieved potentially malformed HTTP request" << ENDL;
+            // implicitely returning 400;
+        }
+    }
+
+    // Feels kinda silly that we basically don't touch the remainder of the header,
+    // but we do have it and it is properly reading it!!!
+
+    return rtnCode;
+
+}
+
+void processConnection(int connfd) {
+    std::string filename;
+    readRequest(connfd, filename);
+    // based on result of readReq well move onto sending specific stuff...
 }
 
 

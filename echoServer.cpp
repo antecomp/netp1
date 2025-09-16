@@ -80,7 +80,7 @@ void processConnection(int connfd) {
             line.erase(newlinePos + termLen);
         } else { // Otherwise keep reading in 10-byte chunks until we build a full line.
             char chunk[CHUNK_SIZE];
-            while (true) {
+            while (true) { // read loop (go in chunks, appending to line until we hit terminator)
                 ssize_t bytesRead = read(connfd, chunk, sizeof(chunk));
                 if (bytesRead == 0) {
                     INFO << "Client Closed Connection (Empty Read)" << ENDL;

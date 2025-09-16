@@ -5,6 +5,7 @@
 #include <fstream>
 #include <regex>
 #include <string>
+#include <sstream> // for istrngstream stuff
 
 #include <string.h>
 #include <unistd.h>
