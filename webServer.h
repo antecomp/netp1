@@ -23,6 +23,11 @@
 #define HEAD 2
 #define POST 3
 
+constexpr std::string_view LINE_TERMINATOR = "\r\n";
+// shift start of line to skip over the terminator.
+//constexpr std::size_t termLen = LINE_TERMINATOR.size();  // -> 2 for "\r\n" (doesnt bloody work)
+constexpr std::size_t termLen = 2; // im just gonna be lazy and manually define it.
+
 //inline int BUFFER_SIZE = 10;
 
 #endif

@@ -75,9 +75,9 @@ void processConnection(int connfd) {
         std::string line = std::move(leftovers);
 
         // If leftover bytes already contain a full line, peel it off now.
-        if (size_t newlinePos = line.find('\n'); newlinePos != std::string::npos) {
-            leftovers.assign(line.begin() + newlinePos + 1, line.end());
-            line.erase(newlinePos + 1);
+        if (size_t newlinePos = line.find(LINE_TERMINATOR); newlinePos != std::string::npos) {
+            leftovers.assign(line.begin() + newlinePos + termLen, line.end());
+            line.erase(newlinePos + 2);
         } else { // Otherwise keep reading in 10-byte chunks until we build a full line.
             char chunk[CHUNK_SIZE];
             while (true) {
@@ -93,9 +93,9 @@ void processConnection(int connfd) {
                 }
 
                 line.append(chunk, bytesRead);
-                if (size_t newlinePos = line.find('\n'); newlinePos != std::string::npos) {
-                    leftovers.assign(line.begin() + newlinePos + 1, line.end());
-                    line.erase(newlinePos + 1);
+                if (size_t newlinePos = line.find(LINE_TERMINATOR); newlinePos != std::string::npos) {
+                    leftovers.assign(line.begin() + newlinePos + termLen, line.end());
+                    line.erase(newlinePos + 2);
                     break; // (end read)
                 }
             }
