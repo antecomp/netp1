@@ -110,7 +110,7 @@ int readRequest(int connfd, std::string &filename) {
             }
             INFO << "Recieved GET request for " << reqPath << " Providing status: " << rtnCode << ENDL;
         } else {
-            WARNING << "Recieved potentially malformed HTTP request" << ENDL;
+            INFO << "Recieved potentially malformed HTTP request" << ENDL;
             // implicitely returning 400;
         }
     }
@@ -142,6 +142,20 @@ void sendLine(int connfd, const std::string &stringToSend) {
     }
 }
 
+void send404(int connfd) {
+    sendLine(connfd, "HTTP/1.1 404 Not Found ");
+    sendLine(connfd, "Content-Type: text/html; charset=UTF-8");
+    sendLine(connfd, "");
+    sendLine(connfd, "<!DOCTYPE html>");
+    sendLine(connfd, "<html lang=\"en\"><head><meta charset=\"utf-8\"><title>404</title></head>");
+    sendLine(connfd, "<body><h1>404 :(</h1><p>The requested file was not found.</p></body></html>");
+}
+
+void send400(int connfd) {
+    sendLine(connfd, "HTTP/1.1 400 Bad Request");
+    sendLine(connfd, "");
+}
+
 void processConnection(int connfd) {
     std::string filename;
     int rtnCode = readRequest(connfd, filename);
@@ -151,16 +165,17 @@ void processConnection(int connfd) {
     // different responses...
     switch(rtnCode) {
         case 404:
-            sendLine(connfd, "PLACEHOLDER (to implement): File Not Found");
+            send404(connfd);
             break;
         case 400:
-            sendLine(connfd, "PLACEHOLDER (to implement): Invalid Req");
+            send400(connfd);
             break;
         case 200:
             sendLine(connfd, "PLACEHOLDER (to implement): File Valid");
             break;
         default:
             ERROR << "[processConnection] Somehow we got an unhandled rtnCode: " << rtnCode << ENDL;
+            send400(connfd);
     }
 }
 
