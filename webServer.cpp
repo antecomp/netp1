@@ -1,195 +1,129 @@
-// **************************************************************************************
-// * webServer (webServer.cpp)
-// * - Implements a very limited subset of HTTP/1.0, use -v to enable verbose debugging output.
-// * - Port number 1701 is the default, if in use random number is selected.
-// *
-// * - GET requests are processed, all other metods result in 400.
-// *     All header gracefully ignored
-// *     Files will only be served from cwd and must have format file\d.html or image\d.jpg
-// *
-// * - Response to a valid get for a legal filename
-// *     status line (i.e., response method)
-// *     Cotent-Length:
-// *     Content-Type:
-// *     \r\n
-// *     requested file.
-// *
-// * - Response to a GET that contains a filename that does not exist or is not allowed
-// *     statu line w/code 404 (not found)
-// *
-// * - CSCI 471 - All other requests return 400
-// * - CSCI 598 - HEAD and POST must also be processed.
-// *
-// * - Program is terminated with SIGINT (ctrl-C)
-// **************************************************************************************
 #include "webServer.h"
 
+#define DEFAULT_PORT 1993
+#define CHUNK_SIZE 10
 
-// **************************************************************************************
-// * Signal Handler.
-// * - Display the signal and exit (returning 0 to OS indicating normal shutdown)
-// * - Optional for 471, required for 598
-// **************************************************************************************
-// void sig_handler(int signo) {}
+void processConnection(int connfd) {
+    std::string leftovers; // overflow from last line, will be attached to next line.
 
+    while (1) {
+        std::string line = std::move(leftovers);
 
-// **************************************************************************************
-// * processRequest,
-//   - Return HTTP code to be sent back
-//   - Set filename if appropriate. Filename syntax is valided but existance is not verified.
-// **************************************************************************************
-int readHeader(int sockFd,std::string &filename) {
-  return 0;
-}
+        // If leftover bytes already contain a full line, peel it off now.
+        if (size_t newlinePos = line.find(LINE_TERMINATOR); newlinePos != std::string::npos) {
+            leftovers.assign(line.begin() + newlinePos + termLen, line.end());
+            line.erase(newlinePos + 2);
+        } else { // Otherwise keep reading in 10-byte chunks until we build a full line.
+            char chunk[CHUNK_SIZE];
+            while (true) {
+                ssize_t bytesRead = read(connfd, chunk, sizeof(chunk));
+                if (bytesRead == 0) {
+                    INFO << "Client Closed Connection (Empty Read)" << ENDL;
+                    return;
+                }
+                if (bytesRead < 0) {
+                    if (errno == EINTR) continue;
+                    ERROR << "read() failed: " << strerror(errno) << ENDL;
+                    return;
+                }
 
+                line.append(chunk, bytesRead);
+                if (size_t newlinePos = line.find(LINE_TERMINATOR); newlinePos != std::string::npos) {
+                    leftovers.assign(line.begin() + newlinePos + termLen, line.end());
+                    line.erase(newlinePos + 2);
+                    break; // (end read)
+                }
+            }
+        }
 
-// **************************************************************************
-// * Send one line (including the line terminator <LF><CR>)
-// * - Assumes the terminator is not included, so it is appended.
-// **************************************************************************
-void sendLine(int socketFd, std::string &stringToSend) {
-  return;
-}
+        // REPLACE ME WITH THE STUFF TO ACTUALLY PARSE AND RESPONSE TO HTTP REQUESTS!!
+        const char* data = line.data(); // convert back to raw data (I think this is the right method for that)
+        size_t remaining = line.size();
+        while (remaining > 0) {
+            ssize_t written = write(connfd, data, remaining);
+            if (written < 0) {
+                // same thing regarding EINTR here as w/ read
+                if(errno == EINTR) continue;
+                ERROR << "write() failed: " << strerror(errno) << ENDL;
+                return;
+            }
+            data += written;
+            remaining -= written;
+        }
 
-// **************************************************************************
-// * Send the entire 404 response, header and body.
-// **************************************************************************
-void send404(int sockFd) {
-  return;
-}
+        
+        // Condition to break this loop: Word "CLOSE" sent...
+        // string_view is this non-mutable window thingy we can use to trim our line of esc chars.
+        std::string_view trimmed = line;
+        while(!trimmed.empty() && (trimmed.back() == '\n' || trimmed.back() == '\r')) {
+            trimmed.remove_suffix(1);
+        }
+        if (trimmed == "CLOSE") {
+            INFO << "Closing by will of client: CLOSE command" << ENDL;
+            return;
+        }
 
-// **************************************************************************
-// * Send the entire 400 response, header and body.
-// **************************************************************************
-void send400(int sockFd) {
-  return;
-}
-
-
-// **************************************************************************************
-// * sendFile
-// * -- Send a file back to the browser.
-// **************************************************************************************
-void sesendFile(int sockFd,std::string filename) {
-  return;
-}
-
-
-// **************************************************************************************
-// * processConnection
-// * -- process one connection/request.
-// **************************************************************************************
-int processConnection(int sockFd) {
- 
-  // Call readHeader()
-
-  // If read header returned 400, send 400
-
-  // If read header returned 404, call send404
-
-  // 471: If read header returned 200, call sendFile
-  
-  // 598 students
-  // - If the header was valid and the method was GET, call sendFile()
-  // - If the header was valid and the method was HEAD, call a function to send back the header.
-  // - If the header was valid and the method was POST, call a function to save the file to dis.
-
-  return 0;
-}
-    
-
-int main (int argc, char *argv[]) {
-
-
-  // ********************************************************************
-  // * Process the command line arguments
-  // ********************************************************************
-  int opt = 0;
-  while ((opt = getopt(argc,argv,"d:")) != -1) {
-    
-    switch (opt) {
-    case 'd':
-      LOG_LEVEL = std::stoi(optarg);
-      break;
-    case ':':
-    case '?':
-    default:
-      std::cout << "useage: " << argv[0] << " -d LOG_LEVEL" << std::endl;
-      exit(-1);
     }
-  }
+
+}
 
 
-  // *******************************************************************
-  // * Catch all possible signals
-  // ********************************************************************
-  DEBUG << "Setting up signal handlers" << ENDL;
-  
+int main() {
 
-  
-  // *******************************************************************
-  // * Creating the inital socket using the socket() call.
-  // ********************************************************************
-  int listenFd;
-  DEBUG << "Calling Socket() assigned file descriptor " << listenFd << ENDL;
+    // Create the socket - it makes an oldschool typeless file descriptor thingy
+    int listenFd = -1;
+    if ((listenFd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
+        FATAL << "Failed to create listening socket " << strerror(errno) << ENDL;
+        exit(-1);
+    }
 
-  
-  // ********************************************************************
-  // * The bind() call takes a structure used to spefiy the details of the connection. 
-  // *
-  // * struct sockaddr_in servaddr;
-  // *
-  // On a cient it contains the address of the server to connect to. 
-  // On the server it specifies which IP address and port to lisen for connections.
-  // If you want to listen for connections on any IP address you use the
-  // address INADDR_ANY
-  // ********************************************************************
+    // Configure da socket.
+    struct sockaddr_in servaddr;
+    bzero(&servaddr, sizeof(servaddr)); // Zero it out.
+    servaddr.sin_family = AF_INET; // ipv4
+    servaddr.sin_addr.s_addr = htonl(INADDR_ANY); // listen on everything
 
+    // track if we got the port (for attempt looping)
+    bool isPortBound = false;
+    int port = DEFAULT_PORT;
+    while(!isPortBound) {
+        servaddr.sin_port = htons(port);
 
+        // Bind it
+        // the goofy (sockaddr*) &servaddr is a type cast to something broad, part of that weird psuedo-polymorphism thing.
+        // "Notice that bind(…) uses the generic sockaddr type, but we filled in an Internet style address (sockaddr_in)."
+        if(bind(listenFd, (sockaddr*) &servaddr, sizeof(servaddr)) < 0) {
 
-  // ********************************************************************
-  // * Binding configures the socket with the parameters we have
-  // * specified in the servaddr structure.  This step is implicit in
-  // * the connect() call, but must be explicitly listed for servers.
-  // *
-  // * Don't forget to check to see if bind() fails because the port
-  // * you picked is in use, and if the port is in use, pick a different one.
-  // ********************************************************************
-  uint16_t port;
-  DEBUG << "Calling bind()" << ENDL;
-  
-  std::cout << "Using port: " << port << std::endl;
+            if(errno == EADDRINUSE) {
+                port += 1;
+                continue;
+            }
 
+            FATAL << "bind() failed: " << strerror(errno) << ENDL;
+            exit(-1);
+        }
 
-  // ********************************************************************
-  // * Setting the socket to the listening state is the second step
-  // * needed to being accepting connections.  This creates a que for
-  // * connections and starts the kernel listening for connections.
-  // ********************************************************************
-  DEBUG << "Calling listen()" << ENDL;
+        INFO << "bound to port " << port << ENDL;
+        isPortBound = true;
+    }
 
+    // Create the listening queue and link it with socket.
+    int queuedepth = 1;
+    if (listen(listenFd, queuedepth) < 0) {
+        FATAL << "listen() failed: " << strerror(errno) << ENDL;
+        exit(-1);
+    }
 
-  // ********************************************************************
-  // * The accept call will sleep, waiting for a connection.  When 
-  // * a connection request comes in the accept() call creates a NEW
-  // * socket with a new fd that will be used for the communication.
-  // ********************************************************************
-  int quitProgram = 0;
-  while (!quitProgram) {
-    int connFd = 0;
-    DEBUG << "Calling connFd = accept(fd,NULL,NULL)." << ENDL;
+    // Wait for connection w/ accept call. Da bigol' server loop
+    while(1) {
+        int connfd = -1;
+        // Accept blocks until we actually have a connection.
+        if((connfd = accept(listenFd, (sockaddr*) NULL, NULL)) < 0) {
+            FATAL << "accept() failed: " << strerror(errno) << ENDL;
+            exit(-1);
+        } 
 
-    
-
-    DEBUG << "We have recieved a connection on " << connFd << ". Calling processConnection(" << connFd << ")" << ENDL;
-    quitProgram = processConnection(connFd);
-    DEBUG << "processConnection returned " << quitProgram << " (should always be 0)" << ENDL;
-    DEBUG << "Closing file descriptor " << connFd << ENDL;
-    close(connFd);
-  }
-  
-
-  ERROR << "Program fell through to the end of main. A listening socket may have closed unexpectadly." << ENDL;
-  closefrom(3);
-
+        processConnection(connfd);
+        close(connfd);
+    }
 }
