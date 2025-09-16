@@ -127,7 +127,7 @@ sendLine(socketFD, std::string &stringToSend)
     2. Replace the last two bytes of the array with the <CR> and <LF>
     3. Use write to send that array.
 */
-void sendLine(int connfd, std::string &stringToSend) {
+void sendLine(int connfd, const std::string &stringToSend) {
     std::string line = stringToSend + std::string(LINE_TERMINATOR);
 
     std::size_t sent = 0;
@@ -145,9 +145,23 @@ void sendLine(int connfd, std::string &stringToSend) {
 void processConnection(int connfd) {
     std::string filename;
     int rtnCode = readRequest(connfd, filename);
-    auto codeString = std::to_string(rtnCode); // I suck at C++, why can't I inline this in func call????
-    // based on result of readReq well move onto sending specific stuff...
-    sendLine(connfd, codeString); // test response. (works :))
+    //auto codeString = std::to_string(rtnCode);
+    //sendLine(connfd, codeString); // test response. (works :))
+
+    // different responses...
+    switch(rtnCode) {
+        case 404:
+            sendLine(connfd, "PLACEHOLDER (to implement): File Not Found");
+            break;
+        case 400:
+            sendLine(connfd, "PLACEHOLDER (to implement): Invalid Req");
+            break;
+        case 200:
+            sendLine(connfd, "PLACEHOLDER (to implement): File Valid");
+            break;
+        default:
+            ERROR << "[processConnection] Somehow we got an unhandled rtnCode: " << rtnCode << ENDL;
+    }
 }
 
 
