@@ -3,6 +3,40 @@
 #define DEFAULT_PORT 1993
 #define CHUNK_SIZE 10
 
+std::filesystem::path webRoot = std::filesystem::current_path() / "data";
+
+bool check_for_file(const std::string &reqPath, std::string &resolvedPath) {
+    if(
+        reqPath.empty() ||
+        reqPath.front() != '/' ||
+        reqPath.find("..") != std::string::npos
+    ) {
+        return false;
+    }
+
+    std::string localPath = reqPath.substr(1); // drop leading slash
+    if(localPath.empty()) localPath = "index.html";
+
+    std::filesystem::path fullPath = webRoot / localPath;
+    if(
+        !std::filesystem::exists(fullPath) || 
+        !std::filesystem::is_regular_file(fullPath)
+    ) {
+        return false;
+    }
+
+    resolvedPath = fullPath.string();
+    return true;
+}
+
+bool is_file_valid(const std::string &filename) {
+    DEBUG << "checking file validity for filename" << filename << ENDL;
+    std::filesystem::path p(filename);
+    std::string base = p.filename().string();
+    static const std::regex allowed(R"(^[A-Za-z]+[0-9]+\.(html|jpg)$)", std::regex::icase);
+    return std::regex_match(base, allowed);
+}
+
 /* 
 1. Set the default return code to 400
 2. Read everything up to and including the end of the header.
@@ -58,18 +92,23 @@ int readRequest(int connfd, std::string &filename) {
     // Get should always be first, so we can just look at [0]. GET in other places is as good as invalid.
     if (!lines.empty()) {
         std::istringstream iss(lines[0]);
-        std::string method, path, version;
+        std::string method, reqPath, version;
         iss >> method;
-        iss >> path;
+        iss >> reqPath;
         iss >> version;
         if(
             !iss.fail() 
             && method == "GET" 
             && version.compare(0, 5, "HTTP/") == 0
         ) {
-            filename = path;
-            rtnCode = 200;
-            INFO << "Recieved GET request for " << filename << ENDL;
+            // this also sets filename to be the proper local path (string)
+            // filename should update during this short-circuit
+            if(check_for_file(reqPath, filename) && is_file_valid(filename)) {
+                rtnCode = 200;
+            } else {
+                rtnCode = 404;
+            }
+            INFO << "Recieved GET request for " << reqPath << " Providing status: " << rtnCode << ENDL;
         } else {
             WARNING << "Recieved potentially malformed HTTP request" << ENDL;
             // implicitely returning 400;
@@ -80,13 +119,35 @@ int readRequest(int connfd, std::string &filename) {
     // but we do have it and it is properly reading it!!!
 
     return rtnCode;
+}
 
+/*
+sendLine(socketFD, std::string &stringToSend)
+    1. Convert the std::string to an array that is 2 bytes longer than the string.
+    2. Replace the last two bytes of the array with the <CR> and <LF>
+    3. Use write to send that array.
+*/
+void sendLine(int connfd, std::string &stringToSend) {
+    std::string line = stringToSend + std::string(LINE_TERMINATOR);
+
+    std::size_t sent = 0;
+    while(sent < line.size()) {
+        ssize_t written = write(connfd, line.data() + sent, line.size() - sent);
+        if(written < 0) {
+            if (errno == EINTR) continue;
+            ERROR << "write() failed in sendLine: " << strerror(errno) << ENDL;
+            return;
+        }
+        sent += static_cast<std::size_t>(written); // (convert written to unsigned to append nicely)
+    }
 }
 
 void processConnection(int connfd) {
     std::string filename;
-    readRequest(connfd, filename);
+    int rtnCode = readRequest(connfd, filename);
+    auto codeString = std::to_string(rtnCode); // I suck at C++, why can't I inline this in func call????
     // based on result of readReq well move onto sending specific stuff...
+    sendLine(connfd, codeString); // test response. (works :))
 }
 
 
