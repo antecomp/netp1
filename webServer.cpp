@@ -1,4 +1,5 @@
 #include "webServer.h"
+#include "logging.h"
 
 #define DEFAULT_PORT 1993
 #define CHUNK_SIZE 10
@@ -132,9 +133,16 @@ void sendLine(int connfd, const std::string &stringToSend) {
 
     std::size_t sent = 0;
     while(sent < line.size()) {
-        ssize_t written = write(connfd, line.data() + sent, line.size() - sent);
+        /* replaced write with send, to include MSG_NOSIGNAL
+           this prevents SIGPIPE (client closed during write) from terminiating the process.
+        */
+        ssize_t written = send(connfd, line.data() + sent, line.size() - sent, MSG_NOSIGNAL);
         if(written < 0) {
             if (errno == EINTR) continue;
+            if (errno == EPIPE) {
+                WARNING << "write() failed: connection closed mid-write." << ENDL;
+                return;
+            }
             ERROR << "write() failed in sendLine: " << strerror(errno) << ENDL;
             return;
         }
