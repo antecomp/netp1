@@ -1,5 +1,6 @@
 #include "webServer.h"
 #include "logging.h"
+#include <cstdint>
 
 #define DEFAULT_PORT 1993
 #define CHUNK_SIZE 10
@@ -135,6 +136,7 @@ void sendLine(int connfd, const std::string &stringToSend) {
     while(sent < line.size()) {
         /* replaced write with send, to include MSG_NOSIGNAL
            this prevents SIGPIPE (client closed during write) from terminiating the process.
+           send, like write, should still just work with raw bytes.
         */
         ssize_t written = send(connfd, line.data() + sent, line.size() - sent, MSG_NOSIGNAL);
         if(written < 0) {
@@ -164,9 +166,49 @@ void send400(int connfd) {
     sendLine(connfd, "");
 }
 
-// void sendFile(int connfd) {
+/*
+// **************************************************************************
+// * Send a 200
+// **************************************************************************
+sendFile(socketFD, filename)
+1. Use the stat() function call to find the size of the file.
+2. If stat fails you don’t have read permission or the file does not exist.
+    a. Send a 404 by calling send404()
+    b. exit the send200() function.
+3. Using the sendLine() function you wrote send the header:
+4. Send a properly formatted HTTP response with the code 200
+5. Send the content type depending on the type of file (text/html or image/jpeg)
+6. Send the content-length
+    a. Note – if the content length and/or file type are not sent correctly, your browser will not display the file correctly.
+7. Send the file itself.
+    a. Open the file.
+    b. Allocate 10 bytes of memory with malloc() or new[]
+    c. While #of-bytes-sent != size-of-file
+        i. Clear out the memory with bzero or something similar.
+        ii. read() up to 10 bytes from the file into your memory buffer
+        iii. write() the number of bytes you read
+8. when you are done you can just return. Since you set the content- length you don’t send the line terminator at the end of the file.
+*/
+void sendFile(int connfd, std::string filename) {
+    struct stat st; 
+    if(stat(filename.c_str(), &st) < 0) {
+        // don’t have read permission or the file does not exist.
+        send404(connfd);
+        return;
+    }
 
-// }
+    TRACE << "sending file of size " << st.st_size << ENDL;
+
+    auto filesize = static_cast<uint64_t>(st.st_size); // make format proper for Content-Length header.
+
+    sendLine(connfd, "HTTP/1.1 200 OK");
+    //sendLine(connfd, "Content-Type: ") // determine type of file first!
+    sendLine(connfd, "Content-Length: " + std::to_string(filesize));
+    sendLine(connfd, "");
+    sendLine(connfd, "Bogus Content To Test!");
+
+
+}
 
 void processConnection(int connfd) {
     std::string filename;
@@ -183,7 +225,7 @@ void processConnection(int connfd) {
             send400(connfd);
             break;
         case 200:
-            sendLine(connfd, "PLACEHOLDER (to implement): File Valid");
+            sendFile(connfd, filename);
             break;
         default:
             ERROR << "[processConnection] Somehow we got an unhandled rtnCode: " << rtnCode << ENDL;

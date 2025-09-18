@@ -19,6 +19,7 @@
 
 #include <strings.h> // for bzero
 #include <errno.h> // for errno
+#include <sys/stat.h>
 
 #define GET 1
 #define HEAD 2
