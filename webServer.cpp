@@ -225,8 +225,47 @@ void sendFile(int connfd, std::string filename) {
     sendLine(connfd, "");
     //sendLine(connfd, "Bogus Content To Test!");
 
-    // TODO: send file bytes
+    //send file bytes
+    char *buffer = new char[CHUNK_SIZE];
+    uint64_t totalSent = 0;
 
+    while(totalSent < filesize) {
+        bzero(buffer, CHUNK_SIZE);
+
+        ssize_t chunkRead = read(filefd, buffer, CHUNK_SIZE);
+        if(chunkRead < 0) {
+            if(errno == EINTR) continue;
+            ERROR << "read() failed while sending file: " << strerror(errno) << ENDL;
+            delete[] buffer;
+            close(filefd);
+            return;
+        }
+        if(chunkRead == 0) {
+            WARNING << "Unexpected EOF while sending file" << ENDL;
+            break;
+        }
+
+        ssize_t chunkWritten = 0;
+        while(chunkWritten < chunkRead) {
+            ssize_t written = send(connfd, buffer + chunkWritten, chunkRead - chunkWritten, MSG_NOSIGNAL);
+            if (written < 0) {
+                if (errno == EINTR) continue;
+                if(errno == EPIPE) {
+                    WARNING << "Client closed connection while sending file." << ENDL;
+                }  else {
+                    ERROR << "send() faild while sending file: " << strerror(errno) << ENDL;
+                }
+                delete[] buffer;
+                close(filefd);
+                return;
+            }
+            chunkWritten += written;
+        }
+
+        totalSent += static_cast<uint64_t>(chunkRead);
+    }
+
+    delete[] buffer;
     close(filefd); // need to do this to prevent leak :^)
 
 }
