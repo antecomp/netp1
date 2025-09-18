@@ -20,6 +20,7 @@
 #include <strings.h> // for bzero
 #include <errno.h> // for errno
 #include <sys/stat.h>
+#include <cstdint> // idk what this was for VSC imported it automatically lol.
 
 #define GET 1
 #define HEAD 2

@@ -1,6 +1,6 @@
 #include "webServer.h"
 #include "logging.h"
-#include <cstdint>
+#include <fcntl.h>
 
 #define DEFAULT_PORT 1993
 #define CHUNK_SIZE 10
@@ -193,6 +193,7 @@ void sendFile(int connfd, std::string filename) {
     struct stat st; 
     if(stat(filename.c_str(), &st) < 0) {
         // don’t have read permission or the file does not exist.
+        DEBUG << "cannot send file (failed at size check), likely do not have permissions. Falling back to 404." << ENDL;
         send404(connfd);
         return;
     }
@@ -201,12 +202,32 @@ void sendFile(int connfd, std::string filename) {
 
     auto filesize = static_cast<uint64_t>(st.st_size); // make format proper for Content-Length header.
 
+    std::filesystem::path p(filename);
+    std::string ext = p.extension().string();
+    TRACE << "requested file has extension " << ext << ENDL;
+    std::transform(ext.begin(), ext.end(), ext.begin(), [](unsigned char c){ return std::tolower(c); });
+
+    std::string contentType = "application/octet-stream"; // fallback (should never see this).
+    if (ext == ".html" || ext == ".htm")  contentType = "text/html; charset=utf-8";
+    else if (ext == ".jpg" || ext == ".jpeg") contentType = "image/jpeg";
+
+
+    int filefd = open(filename.c_str(), O_RDONLY);
+    if (filefd < 0) {
+        ERROR << "open() failed: " << strerror(errno) << ENDL;
+        send404(connfd);
+        return;
+    }
+
     sendLine(connfd, "HTTP/1.1 200 OK");
-    //sendLine(connfd, "Content-Type: ") // determine type of file first!
+    sendLine(connfd, "Content-Type: " + contentType); // determine type of file first!
     sendLine(connfd, "Content-Length: " + std::to_string(filesize));
     sendLine(connfd, "");
-    sendLine(connfd, "Bogus Content To Test!");
+    //sendLine(connfd, "Bogus Content To Test!");
 
+    // TODO: send file bytes
+
+    close(filefd); // need to do this to prevent leak :^)
 
 }
 
