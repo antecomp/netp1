@@ -156,6 +156,10 @@ void send400(int connfd) {
     sendLine(connfd, "");
 }
 
+// void sendFile(int connfd) {
+
+// }
+
 void processConnection(int connfd) {
     std::string filename;
     int rtnCode = readRequest(connfd, filename);
