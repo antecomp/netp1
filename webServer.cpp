@@ -298,8 +298,14 @@ int main(int argc, char *argv[]) {
 
         switch (opt) {
         case 'd':
-            LOG_LEVEL = std::stoi(optarg);
-            break;
+            try {
+                LOG_LEVEL = std::stoi(optarg);
+                break;
+            } catch (const std::invalid_argument&) {
+                // fall through to default
+            } catch (const std::out_of_range&) {
+                // fall through to default
+            }
         case ':':
         case '?':
         default:
@@ -309,7 +315,7 @@ int main(int argc, char *argv[]) {
     }
 
     // Create the socket - it makes an oldschool typeless file descriptor thingy
-    DEBUG << "init: calling socket()" << ENDL;
+    TRACE << "init: calling socket()" << ENDL;
     int listenFd = -1;
     if ((listenFd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
         FATAL << "Failed to create listening socket " << strerror(errno) << ENDL;
@@ -323,7 +329,7 @@ int main(int argc, char *argv[]) {
     servaddr.sin_addr.s_addr = htonl(INADDR_ANY); // listen on everything
 
     // track if we got the port (for attempt looping)
-    DEBUG << "init: attempting to bind socket." << ENDL;
+    TRACE << "init: attempting to bind socket." << ENDL;
 
     int port = DEFAULT_PORT;
     while(1) {
@@ -350,7 +356,7 @@ int main(int argc, char *argv[]) {
         break;
     }
 
-    DEBUG << "init: Configuring listen() " << ENDL;
+    TRACE << "init: Configuring listen() " << ENDL;
 
     // Create the listening queue and link it with socket.
     int queuedepth = 1;
@@ -361,7 +367,7 @@ int main(int argc, char *argv[]) {
 
     // Wait for connection w/ accept call. Da bigol' server loop
 
-    DEBUG << "init: now entering main loop (wait and accept() cycle)" << ENDL;
+    TRACE << "init: now entering main loop (wait and accept() cycle)" << ENDL;
 
     while(1) {
         int connfd = -1;
