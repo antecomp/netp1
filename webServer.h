@@ -31,6 +31,9 @@ constexpr std::string_view LINE_TERMINATOR = "\r\n";
 //constexpr std::size_t termLen = LINE_TERMINATOR.size();  // -> 2 for "\r\n" (doesnt bloody work)
 constexpr std::size_t termLen = 2; // im just gonna be lazy and manually define it.
 
+#define DEFAULT_PORT 1993
+#define CHUNK_SIZE 10
+
 //inline int BUFFER_SIZE = 10;
 
 #endif

@@ -2,9 +2,6 @@
 #include "logging.h"
 #include <fcntl.h>
 
-#define DEFAULT_PORT 1993
-#define CHUNK_SIZE 10
-
 std::filesystem::path webRoot = std::filesystem::current_path() / "data";
 
 bool check_for_file(const std::string &reqPath, std::string &resolvedPath) {
@@ -17,7 +14,6 @@ bool check_for_file(const std::string &reqPath, std::string &resolvedPath) {
     }
 
     std::string localPath = reqPath.substr(1); // drop leading slash
-    if(localPath.empty()) localPath = "index.html";
 
     std::filesystem::path fullPath = webRoot / localPath;
     if(
@@ -104,7 +100,7 @@ int readRequest(int connfd, std::string &filename) {
             && version.compare(0, 5, "HTTP/") == 0
         ) {
             // this also sets filename to be the proper local path (string)
-            // filename should update during this short-circuit
+            // filename should update during this short-circuit (check_for_file modifies it)
             if(check_for_file(reqPath, filename) && is_file_valid(filename)) {
                 rtnCode = 200;
             } else {
@@ -135,7 +131,7 @@ void sendLine(int connfd, const std::string &stringToSend) {
     std::size_t sent = 0;
     while(sent < line.size()) {
         /* replaced write with send, to include MSG_NOSIGNAL
-           this prevents SIGPIPE (client closed during write) from terminiating the process.
+           this prevents SIGPIPE (client closed during write) from terminating the process.
            send, like write, should still just work with raw bytes.
         */
         ssize_t written = send(connfd, line.data() + sent, line.size() - sent, MSG_NOSIGNAL);
@@ -288,15 +284,32 @@ void processConnection(int connfd) {
             sendFile(connfd, filename);
             break;
         default:
-            ERROR << "[processConnection] Somehow we got an unhandled rtnCode: " << rtnCode << ENDL;
+            WARNING << "[processConnection] Somehow we got an unhandled rtnCode: " << rtnCode << ENDL;
             send400(connfd);
     }
 }
 
 
-int main() {
+int main(int argc, char *argv[]) {
+
+    // Process cl args (taken from template)
+    int opt = 0;
+    while ((opt = getopt(argc, argv, "d:")) != -1) {
+
+        switch (opt) {
+        case 'd':
+            LOG_LEVEL = std::stoi(optarg);
+            break;
+        case ':':
+        case '?':
+        default:
+            std::cout << "useage: " << argv[0] << " -d LOG_LEVEL" << std::endl;
+            exit(-1);
+        }
+    }
 
     // Create the socket - it makes an oldschool typeless file descriptor thingy
+    DEBUG << "init: calling socket()" << ENDL;
     int listenFd = -1;
     if ((listenFd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
         FATAL << "Failed to create listening socket " << strerror(errno) << ENDL;
@@ -310,9 +323,10 @@ int main() {
     servaddr.sin_addr.s_addr = htonl(INADDR_ANY); // listen on everything
 
     // track if we got the port (for attempt looping)
-    bool isPortBound = false;
+    DEBUG << "init: attempting to bind socket." << ENDL;
+
     int port = DEFAULT_PORT;
-    while(!isPortBound) {
+    while(1) {
         servaddr.sin_port = htons(port);
 
         // Bind it
@@ -329,9 +343,14 @@ int main() {
             exit(-1);
         }
 
-        INFO << "bound to port " << port << ENDL;
-        isPortBound = true;
+        //INFO << "bound to port " << port << ENDL;
+        // Instead: going to always print bound port regardless of logging mode...
+        std::cout << "bound to port " << port << std::endl;
+
+        break;
     }
+
+    DEBUG << "init: Configuring listen() " << ENDL;
 
     // Create the listening queue and link it with socket.
     int queuedepth = 1;
@@ -341,6 +360,9 @@ int main() {
     }
 
     // Wait for connection w/ accept call. Da bigol' server loop
+
+    DEBUG << "init: now entering main loop (wait and accept() cycle)" << ENDL;
+
     while(1) {
         int connfd = -1;
         // Accept blocks until we actually have a connection.
